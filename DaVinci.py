@@ -55,8 +55,8 @@ wav_file = None
 
 # OpenAI and API credentials
 GPT_model = "gpt-3.5-turbo"
-openai.api_key = "ENTER HERE"
-pv_access_key = "ENTER HERE"
+openai.api_key = ""
+pv_access_key = ""
 
 # Meteomatics API constants
 NYC_lat = 40.730610
@@ -86,8 +86,8 @@ chat_log = [
 
 
 # Credentials
-username = 'ENTER HERE'
-password = 'ENTER HERE'
+username = ''
+password = ''
 
 def get_access_token():
     auth_url = 'https://login.meteomatics.com/api/v1/token'
@@ -206,19 +206,24 @@ def ChatGPT(query, access_token):
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages,
-            tools=tools,  # Passing the tools here if using function calling
-            
+            tools=tools,  # Passing the tools here
         )
         
         message = response.choices[0].message
         print(f"OpenAI response received: {message}")  # Debug statement
         
-        # Check if a function call was returned
-        if "function_call" in message:
-            print(f"Function call detected: {message['function_call']}")  # Debug statement
-            function_name = message['function_call']['name']
-            arguments = json.loads(message['function_call']['arguments'])  # Load the arguments
-            print(f"Function call arguments: {arguments}")  # Debug statement
+        tool_call = response.choices[0].message.tool_calls[0]
+        print(f"tool calls:{tool_call}")
+        arguments = json.loads(tool_call['function']['arguments'])
+        print(arguments)
+        
+        # Check if a tool call was made
+        if 'tool_calls' in message:
+            tool_call = message['tool_calls'][0]  # Assuming we're dealing with the first tool call
+            print(f"Tool call detected: {tool_call}")  # Debug statement
+            function_name = tool_call['function']['name']
+            arguments = json.loads(tool_call['function']['arguments'])  # Load the arguments
+            print(f"Tool call arguments: {arguments}")  # Debug statement
             
             if function_name == "get_weather":
                 # Extract arguments and call the get_weather function
@@ -228,48 +233,24 @@ def ChatGPT(query, access_token):
                 long = float(arguments.get("long", NYC_long))
                 output = arguments.get("output", "json")
                 
-                print(f"Calling get_weather with: times={times}, _type={temp_type}, lat={lat}, long={long}, output={output}, access_token={access_token}")  # Debug statement
+                print(f"Calling get_weather with: times={times}, _type={_type}, lat={lat}, long={long}, output={output}, access_token={access_token}")  # Debug statement
                 # Call the get_weather function and return the result
-                weather_data = get_weather(lat=lat, long=long, _type=temp_type, time=time, output=output, access_token=access_token)
+                weather_data = get_weather(lat=lat, long=long, _type=_type, times=times, output=output, access_token=access_token)
                 if weather_data:
                     print(f"Weather data retrieved: {weather_data}")  # Debug statement
-                    # Prepare the result to be sent back to the model
-                    function_call_result_message = {
-                        "role": "tool",
-                        "content": json.dumps({
-                            "times": times,
-                            "_type": temp_type,
-                            "lat": lat,
-                            "long": long,
-                            "temperature": weather_data['t_2m:C']
-                        }),
-                        "tool_call_id": response.choices[0].message.get('tool_calls')[0]['id']
-                    }
-                    
-                    # Send the result back to the model
-                    completion_payload = {
-                        "model": "gpt-3.5-turbo",
-                        "messages": messages + [message, function_call_result_message]
-                    }
-                    
-                    final_response = client.chat.completions.create(
-                        model=completion_payload["model"],
-                        messages=completion_payload["messages"]
-                    )
-                    
-                    print(f"Final response from OpenAI after function call: {final_response.choices[0].message.content}")  # Debug statement
-                    return final_response.choices[0].message.content
+                    return f"The current temperature is {weather_data['t_2m:C']['value']}°C."
                 else:
                     print("Weather data retrieval failed.")  # Debug statement
                     return "Sorry, I couldn't retrieve the weather information."
         
-        # If no function call was made, return the regular response
-        print("No function call made, returning regular response.")  # Debug statement
-        return message.content
+        # If no tool call was made, return the regular response
+        print("No tool call made, returning regular response.")  # Debug statement
+        return message.get('content', 'Sorry, there was no content in the response.')
 
     except openai.BadRequestError as e:
         print(f"An error occurred in ChatGPT: {e}")
         return "Sorry, there was an error processing your request."
+
 
 
 
@@ -499,6 +480,7 @@ try:
 
         except openai.APIError as e:
             print("\nThere was an API error. Please try again in a few minutes.")
+            print(e)
             voice("\nThere was an A P I error. Please try again in a few minutes.")
             event.set()
             recorder.stop()
