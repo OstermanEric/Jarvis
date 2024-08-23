@@ -209,30 +209,36 @@ def ChatGPT(query, access_token):
             tools=tools,  # Passing the tools here
         )
         
-<<<<<<< HEAD
         response_message = response.choices[0].message
         print(f"OpenAI response received: {response_message}")  # Debug statement
         messages.append(response_message)
 
         # get if any tool calls have been called 
         tool_calls = response_message.tool_calls
+        print(f"tool calls:{tool_calls}") # this works
         # if true, the model will return the name of the tool / function to call and arguments
         if tool_calls:
             tool_call_id = tool_calls[0].id
             tool_function_name = tool_calls[0].function.name
             tool_function_lat = json.loads(tool_calls[0].function.arguments)['lat']
-            print('lat: {tool_function_lat}')
-        
+            tool_function_long = json.loads(tool_calls[0].function.arguments)['long']
+            tool_function_type = json.loads(tool_calls[0].function.arguments)['type']
+            tool_function_times = json.loads(tool_calls[0].function.arguments)['times']
+            tool_function_output = json.loads(tool_calls[0].function.arguments)['output']
+            print('lat: {tool_function_lat}') # gets let with query 'what is the weather today'
+            if tool_function_name == 'get_weather':
+                #calling function now
+                results = get_weather(tool_function_lat, tool_function_long, tool_function_type, tool_function_times, tool_function_output, access_token)
+                print('results: {results}')
+        # def get_weather(lat=NYC_lat, long=NYC_long, _type=temp_type, times=times, output="json", access_token=None):
 
         tool_call = response.choices[0].message.tool_calls[0]
         print(f"tool calls:{tool_call}") # this works
-=======
         message = response.choices[0].message
         print(f"OpenAI response received: {message}")  # Debug statement
         
         tool_call = response.choices[0].message.tool_calls[0]
         print(f"tool calls:{tool_call}")
->>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
         arguments = json.loads(tool_call['function']['arguments'])
         print(arguments)
         
@@ -344,11 +350,6 @@ def wake_word():
 
             if porcupine_keyword_index >= 0:
                 print(f"\nKeyword '{keywords[porcupine_keyword_index]}' detected\n")
-<<<<<<< HEAD
-=======
-                GPIO.output(led1_pin, GPIO.HIGH)
-                GPIO.output(led2_pin, GPIO.HIGH)
->>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
                 break
     finally:
         porcupine_audio_stream.stop_stream()
@@ -408,12 +409,6 @@ def detect_silence():
             silence_duration = time.time() - last_voice_time  # Calculate the duration of silence
             if silence_duration > 1.3:
                 print("End of query detected\n")
-<<<<<<< HEAD
-=======
-                GPIO.output(led1_pin, GPIO.LOW)
-                GPIO.output(led2_pin, GPIO.LOW)
-                
->>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
                 cobra_audio_stream.stop_stream()
                 cobra_audio_stream.close()
                 cobra.delete()
@@ -542,8 +537,4 @@ try:
 
 except KeyboardInterrupt:
     print("\nExiting ChatGPT Virtual Assistant")
-<<<<<<< HEAD
     o.delete
-=======
-    o.delete
->>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
