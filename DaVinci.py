@@ -43,6 +43,16 @@ wav_file = None
 
 
 
+audio_stream = None
+cobra = None
+pa = None
+polly = boto3.client('polly')
+porcupine = None
+recorder = None
+wav_file = None
+
+
+
 # OpenAI and API credentials
 GPT_model = "gpt-3.5-turbo"
 openai.api_key = ""
@@ -199,6 +209,7 @@ def ChatGPT(query, access_token):
             tools=tools,  # Passing the tools here
         )
         
+<<<<<<< HEAD
         response_message = response.choices[0].message
         print(f"OpenAI response received: {response_message}")  # Debug statement
         messages.append(response_message)
@@ -215,6 +226,13 @@ def ChatGPT(query, access_token):
 
         tool_call = response.choices[0].message.tool_calls[0]
         print(f"tool calls:{tool_call}") # this works
+=======
+        message = response.choices[0].message
+        print(f"OpenAI response received: {message}")  # Debug statement
+        
+        tool_call = response.choices[0].message.tool_calls[0]
+        print(f"tool calls:{tool_call}")
+>>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
         arguments = json.loads(tool_call['function']['arguments'])
         print(arguments)
         
@@ -326,6 +344,11 @@ def wake_word():
 
             if porcupine_keyword_index >= 0:
                 print(f"\nKeyword '{keywords[porcupine_keyword_index]}' detected\n")
+<<<<<<< HEAD
+=======
+                GPIO.output(led1_pin, GPIO.HIGH)
+                GPIO.output(led2_pin, GPIO.HIGH)
+>>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
                 break
     finally:
         porcupine_audio_stream.stop_stream()
@@ -385,6 +408,12 @@ def detect_silence():
             silence_duration = time.time() - last_voice_time  # Calculate the duration of silence
             if silence_duration > 1.3:
                 print("End of query detected\n")
+<<<<<<< HEAD
+=======
+                GPIO.output(led1_pin, GPIO.LOW)
+                GPIO.output(led2_pin, GPIO.LOW)
+                
+>>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
                 cobra_audio_stream.stop_stream()
                 cobra_audio_stream.close()
                 cobra.delete()
@@ -513,4 +542,8 @@ try:
 
 except KeyboardInterrupt:
     print("\nExiting ChatGPT Virtual Assistant")
+<<<<<<< HEAD
     o.delete
+=======
+    o.delete
+>>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
