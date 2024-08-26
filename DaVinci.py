@@ -209,62 +209,56 @@ def ChatGPT(query, access_token):
             tools=tools,  # Passing the tools here
         )
         
-<<<<<<< HEAD
         response_message = response.choices[0].message
         print(f"OpenAI response received: {response_message}")  # Debug statement
         messages.append(response_message)
 
         # get if any tool calls have been called 
         tool_calls = response_message.tool_calls
+        print(f"tool calls:{tool_calls}") # this works
         # if true, the model will return the name of the tool / function to call and arguments
         if tool_calls:
             tool_call_id = tool_calls[0].id
             tool_function_name = tool_calls[0].function.name
             tool_function_lat = json.loads(tool_calls[0].function.arguments)['lat']
-            print('lat: {tool_function_lat}')
-        
-
-        tool_call = response.choices[0].message.tool_calls[0]
-        print(f"tool calls:{tool_call}") # this works
-=======
-        message = response.choices[0].message
-        print(f"OpenAI response received: {message}")  # Debug statement
-        
-        tool_call = response.choices[0].message.tool_calls[0]
-        print(f"tool calls:{tool_call}")
->>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
-        arguments = json.loads(tool_call['function']['arguments'])
-        print(arguments)
-        
-        # Check if a tool call was made
-        if 'tool_calls' in message:
-            tool_call = message['tool_calls'][0]  # Assuming we're dealing with the first tool call
-            print(f"Tool call detected: {tool_call}")  # Debug statement
-            function_name = tool_call['function']['name']
-            arguments = json.loads(tool_call['function']['arguments'])  # Load the arguments
-            print(f"Tool call arguments: {arguments}")  # Debug statement
-            
-            if function_name == "get_weather":
-                # Extract arguments and call the get_weather function
-                times = arguments.get("times", "now")
-                _type = arguments.get("_type", "t_2m:C")
-                lat = float(arguments.get("lat", NYC_lat))
-                long = float(arguments.get("long", NYC_long))
-                output = arguments.get("output", "json")
-                
-                print(f"Calling get_weather with: times={times}, _type={_type}, lat={lat}, long={long}, output={output}, access_token={access_token}")  # Debug statement
-                # Call the get_weather function and return the result
-                weather_data = get_weather(lat=lat, long=long, _type=_type, times=times, output=output, access_token=access_token)
+            tool_function_long = json.loads(tool_calls[0].function.arguments)['long']
+            tool_function_type = json.loads(tool_calls[0].function.arguments)['_type']
+            tool_function_times = json.loads(tool_calls[0].function.arguments)['times']
+            tool_function_output = json.loads(tool_calls[0].function.arguments)['output']
+            print('lat: {tool_function_lat}') # gets let with query 'what is the weather today'
+            if tool_function_name == 'get_weather':
+                #calling function now
+                weather_data = get_weather(tool_function_lat, tool_function_long, tool_function_type, tool_function_times, tool_function_output, access_token)
+                # if weather results are not null, get temperature value
                 if weather_data:
-                    print(f"Weather data retrieved: {weather_data}")  # Debug statement
-                    return f"The current temperature is {weather_data['t_2m:C']['value']}°C."
+                    temperature = weather_data['t_2m:C']['value']
+                    weather_response = f"The current temperature at the specified location is {temperature}°C."
+                    print(f"Weather data retrieved: {weather_response}")  # Debug statement
+
+                    # Feed the weather response back to ChatGPT for a conversational response
+                    messages.append({
+                        "role": "tool", 
+                        "tool_call_id":tool_call_id,
+                        "name": tool_function_name,
+                        "content": weather_response
+                    })
+                    follow_up_response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=messages
+                    )
+                    
+                    final_message = follow_up_response.choices[0].message.content
+                    print('final message: {follow_up_response.choices[0].message.content}')
+                    return final_message
                 else:
                     print("Weather data retrieval failed.")  # Debug statement
                     return "Sorry, I couldn't retrieve the weather information."
-        
+
+
+        # def get_weather(lat=NYC_lat, long=NYC_long, _type=temp_type, times=times, output="json", access_token=None):        
         # If no tool call was made, return the regular response
         print("No tool call made, returning regular response.")  # Debug statement
-        return message.get('content', 'Sorry, there was no content in the response.')
+        return response_message.content
 
     except openai.BadRequestError as e:
         print(f"An error occurred in ChatGPT: {e}")
@@ -344,11 +338,6 @@ def wake_word():
 
             if porcupine_keyword_index >= 0:
                 print(f"\nKeyword '{keywords[porcupine_keyword_index]}' detected\n")
-<<<<<<< HEAD
-=======
-                GPIO.output(led1_pin, GPIO.HIGH)
-                GPIO.output(led2_pin, GPIO.HIGH)
->>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
                 break
     finally:
         porcupine_audio_stream.stop_stream()
@@ -408,12 +397,6 @@ def detect_silence():
             silence_duration = time.time() - last_voice_time  # Calculate the duration of silence
             if silence_duration > 1.3:
                 print("End of query detected\n")
-<<<<<<< HEAD
-=======
-                GPIO.output(led1_pin, GPIO.LOW)
-                GPIO.output(led2_pin, GPIO.LOW)
-                
->>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
                 cobra_audio_stream.stop_stream()
                 cobra_audio_stream.close()
                 cobra.delete()
@@ -542,8 +525,4 @@ try:
 
 except KeyboardInterrupt:
     print("\nExiting ChatGPT Virtual Assistant")
-<<<<<<< HEAD
     o.delete
-=======
-    o.delete
->>>>>>> 71002ba20681952dd39e237f23226eb7b3cbef42
