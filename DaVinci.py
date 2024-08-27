@@ -57,11 +57,12 @@ wav_file = None
 GPT_model = "gpt-3.5-turbo"
 openai.api_key = ""
 pv_access_key = ""
+location_api_key = ""
 
 # Meteomatics API constants
 NYC_lat = 40.730610
 NYC_long = -74.0060
-temp_type = "t_2mf" # gets crrent temp in farenheit
+temp_type = "t_2m:C" # gets crrent temp in farenheit
 times = "now"
 # Initialize OpenAI client
 client = OpenAI(api_key=openai.api_key)
@@ -109,7 +110,7 @@ def get_access_token():
         print(f"An error occurred during authentication: {e}")
         return None
 
-def get_coordinates(location, api_key):
+def get_coordinates(location, api_key=location_api_key):
     base_url = "https://us1.locationiq.com/v1/search"
     params = {
         "key": api_key,
@@ -122,8 +123,8 @@ def get_coordinates(location, api_key):
         if response.status_code == 200:
             data = response.json()
             if data:
-                lat = data[0]["lat"]
-                lon = data[0]["lon"]
+                lat = round(float(data[0]["lat"]), 6)  # Round to 6 decimal places
+                lon = round(float(data[0]["lon"]), 6)  # Round to 6 decimal places
                 print(f"Coordinates for {location}: lat={lat}, lon={lon}")  # Debug statement
                 return lat, lon
             else:
@@ -136,14 +137,12 @@ def get_coordinates(location, api_key):
         print(f"An error occurred while getting coordinates: {e}")
         return None, None
 
-
-
 def get_weather(lat, long, _type=temp_type, times=times, output="json", access_token=None):
     base_url = "https://api.meteomatics.com"
     endpoint = f"/{times}/{_type}/{lat},{long}/{output}"
     full_url = f"{base_url}{endpoint}?access_token={access_token}"
 
-    print(f"get_weather called with arguments: lat={NYC_lat}, long={NYC_long}, _type={temp_type}, times={times}, output={output}")  # Debug statement
+    print(f"get_weather called with arguments: lat={lat}, long={long}, _type={temp_type}, times={times}, output={output}")  # Debug statement
 
     try:
         print(f"Requesting weather data from: {full_url}")  # Debug statement
@@ -162,8 +161,8 @@ def get_weather(lat, long, _type=temp_type, times=times, output="json", access_t
                 coordinates_data = data_entry.get("coordinates", [])
 
                 for coord in coordinates_data:
-                    coord_lat = coord.get("lat")
-                    coord_lon = coord.get("lon")
+                    coord_lat = round(coord.get("lat"), 6)  # Round to 6 decimal places
+                    coord_lon = round(coord.get("lon"), 6)  # Round to 6 decimal places
                     if coord_lat == lat and coord_lon == long:
                         print(f"Matching coordinates found: lat={coord_lat}, long={coord_lon}")  # Debug statement
                         # For now, we'll just grab the first date entry, but this could be expanded
@@ -182,6 +181,7 @@ def get_weather(lat, long, _type=temp_type, times=times, output="json", access_t
     except Exception as e:
         print(f"An error occurred in get_weather: {e}")
         return None
+
 
 
 # tools = [
@@ -236,7 +236,7 @@ tools = [
                     },
                     "_type": {
                         "type": "string",
-                        "description": "weather data, e.g., 't_2m:C' for temperature",
+                        "description": "weather data, e.g., 't_2m:F' for temperature",
                     },
                     "lat": {
                         "type": "number",
@@ -378,55 +378,40 @@ def ChatGPT(query, access_token, location_api_key):
         if tool_calls:
             tool_call_id = tool_calls[0].id
             tool_function_name = tool_calls[0].function.name
-            tool_function_arguments = json.loads(tool_calls[0].function.arguments)
-            
-            if tool_function_name == 'get_weather':
-                # Initialize lat and lon as None
-                lat, lon = None, None
-                
-                # Check if location is provided
-                if "lat" not in tool_function_arguments or "long" not in tool_function_arguments:
-                    # Ask for location if not provided
-                    messages.append({"role": "assistant", "content": "Please provide the location for which you want the weather."})
-                    follow_up_response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=messages
+            if tool_function_name == 'get_coordinates':
+                location_data = json.loads(tool_calls[0].function.arguments)
+                # TODO: change so it uses location_name 
+                location_name = location_data['location']
+                coordinates = get_coordinates(location_data['location'], location_api_key)
+                if coordinates:
+                    # Now that we have the coordinates, call get_weather
+                    weather_data = get_weather(
+                        lat=coordinates[0],
+                        long=coordinates[1],
+                        _type="t_2m:C",
+                        times="now",
+                        output="json",
+                        access_token=access_token
                     )
-                    location = follow_up_response.choices[0].message.content.strip()
-                    print(f"Location provided by user: {location}")  # Debug statement
-                    
-                    # Now get coordinates from the provided location
-                    lat, lon = get_coordinates(location, location_api_key)
-                    if not lat or not lon:
-                        return "Sorry, I couldn't find that location."
-                else:
-                    lat = tool_function_arguments['lat']
-                    lon = tool_function_arguments['long']
-                
-                # Now that we have lat and lon, get the weather
-                weather_data = get_weather(lat, lon, tool_function_arguments.get('_type', temp_type), tool_function_arguments.get('times', times), tool_function_arguments.get('output', 'json'), access_token)
-                
-                if weather_data:
-                    temperature = weather_data['t_2m:C']['value']
-                    weather_response = f"The current temperature at the specified location is {temperature}°C."
-                    print(f"Weather data retrieved: {weather_response}")  # Debug statement
+                    if weather_data:
+                        temperature = weather_data['t_2m:C']['value']
+                        weather_response = f"The current temperature at {location_name} is {temperature}°C."
+                        print(f"Weather data retrieved: {weather_response}")
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call_id,
+                            "name": tool_function_name,
+                            "content": weather_response
+                        })
+                        follow_up_response = client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=messages
+                        )
+                        final_message = follow_up_response.choices[0].message.content
+                        return final_message
+                    else:
+                        return "Sorry, I couldn't retrieve the weather information."
 
-                    messages.append({
-                        "role": "tool", 
-                        "tool_call_id": tool_call_id,
-                        "name": tool_function_name,
-                        "content": weather_response
-                    })
-                    follow_up_response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=messages
-                    )
-                    
-                    final_message = follow_up_response.choices[0].message.content
-                    print(f"Final message: {final_message}")
-                    return final_message
-                else:
-                    return "Sorry, I couldn't retrieve the weather information."
 
         # If no tool call was made, return the regular response
         return response_message.content
@@ -645,7 +630,7 @@ try:
             print(transcript)  # Debug statement, prints the transcript or voice request
             
             # Use the ChatGPT function, passing the access token for the weather API
-            res = ChatGPT(transcript, access_token)
+            res = ChatGPT(transcript, access_token, location_api_key)
             print("\nChatGPT's response is:\n")
             t1 = threading.Thread(target=voice, args=(res,))
             t2 = threading.Thread(target=responseprinter, args=(res,))
