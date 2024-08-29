@@ -21,6 +21,8 @@ import requests
 
 import requests
 
+# pip install newsapi-python -- needed to install newsapi library to make calls easier
+
 from os import environ
 environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 import pygame
@@ -90,6 +92,7 @@ chat_log = [
 username = ''
 password = ''
 
+# get access token from meteomatics in order to get authorization token neededd for weather api
 def get_access_token():
     auth_url = 'https://login.meteomatics.com/api/v1/token'
     headers = {
@@ -136,7 +139,9 @@ def get_coordinates(location, api_key=location_api_key):
     except Exception as e:
         print(f"An error occurred while getting coordinates: {e}")
         return None, None
+    
 
+# function to get weather data from meteomatics.com
 def get_weather(lat, long, _type=temp_type, times=times, output="json", access_token=None):
     base_url = "https://api.meteomatics.com"
     endpoint = f"/{times}/{_type}/{lat},{long}/{output}"
@@ -181,6 +186,31 @@ def get_weather(lat, long, _type=temp_type, times=times, output="json", access_t
     except Exception as e:
         print(f"An error occurred in get_weather: {e}")
         return None
+    
+# function to get news headlines from newsapi.com
+def get_news_headlines(api_key, country='us', category='general', pageSize=5):
+    base_url = "https://newsapi.org/v2/top-headlines"
+    params = {
+        "apiKey": api_key,
+        "country": country,
+        "category": category,
+        "pageSize": pageSize
+    }
+    
+    try:
+        response = requests.get(base_url, params=params)
+        if response.status_code == 200:
+            news_data = response.json()
+            headlines = []
+            for article in news_data.get('articles', []):
+                headlines.append(article['title'])
+            return headlines
+        else:
+            print(f"Failed to retrieve news: {response.text}")
+            return []
+    except Exception as e:
+        print(f"An error occurred while getting news: {e}")
+        return []
 
 
 
@@ -199,7 +229,7 @@ def get_weather(lat, long, _type=temp_type, times=times, output="json", access_t
 #                     },
 #                     "_type": {
 #                         "type": "string",
-#                         "description": "Type of weather data, e.g., 't_2m:C' for temperature",
+#                         "description": "weather data, e.g., 't_2m:F' for temperature",
 #                     },
 #                     "lat": {
 #                         "type": "number",
@@ -218,7 +248,29 @@ def get_weather(lat, long, _type=temp_type, times=times, output="json", access_t
 #                 "additionalProperties": False
 #             }
 #         }
-#     }
+#     },
+#     {
+#         "type": "function",
+#         "function": {
+#             "name": "get_coordinates",
+#             "description": "Get the latitude and longitude for a specific location",
+#             "parameters": {
+#                 "type": "object",
+#                 "properties": {
+#                     "location": {
+#                         "type": "string",
+#                         "description": "The name or address of the location to geocode"
+#                     },
+#                     "api_key": {
+#                         "type": "string",
+#                         "description": "API key to access the geocoding service"
+#                     }
+#                 },
+#                 "required": ["location", "api_key"],
+#                 "additionalProperties": False
+#             }
+#         }
+#     },
 # ]
 
 tools = [
@@ -236,7 +288,7 @@ tools = [
                     },
                     "_type": {
                         "type": "string",
-                        "description": "weather data, e.g., 't_2m:F' for temperature",
+                        "description": "weather data, e.g., 't_2m:C' for temperature",
                     },
                     "lat": {
                         "type": "number",
@@ -277,12 +329,39 @@ tools = [
                 "additionalProperties": False
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_news_headlines",
+            "description": "Retrieve the top 5 news headlines for a specific country and category",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "country": {
+                        "type": "string",
+                        "description": "The 2-letter ISO 3166-1 code of the country you want to get headlines for."
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "The category of news to retrieve, e.g., 'general', 'business', 'entertainment'."
+                    },
+                    "api_key": {
+                        "type": "string",
+                        "description": "API key to access the news service"
+                    }
+                },
+                "required": ["country", "category", "api_key"],
+                "additionalProperties": False
+            }
+        }
     }
 ]
 
 
 
-# def ChatGPT(query, access_token):
+# # updated function that will ask user for location of where they want weather from
+# def ChatGPT(query, access_token, location_api_key):
 #     print(f"ChatGPT called with query: {query}")  # Debug statement
     
 #     messages = [
@@ -301,60 +380,98 @@ tools = [
 #         print(f"OpenAI response received: {response_message}")  # Debug statement
 #         messages.append(response_message)
 
-#         # get if any tool calls have been called 
 #         tool_calls = response_message.tool_calls
-#         print(f"tool calls:{tool_calls}") # this works
-#         # if true, the model will return the name of the tool / function to call and arguments
+#         print(f"Tool calls: {tool_calls}")  # Debug statement
+
 #         if tool_calls:
 #             tool_call_id = tool_calls[0].id
 #             tool_function_name = tool_calls[0].function.name
-#             tool_function_lat = json.loads(tool_calls[0].function.arguments)['lat']
-#             tool_function_long = json.loads(tool_calls[0].function.arguments)['long']
-#             tool_function_type = json.loads(tool_calls[0].function.arguments)['_type']
-#             tool_function_times = json.loads(tool_calls[0].function.arguments)['times']
-#             tool_function_output = json.loads(tool_calls[0].function.arguments)['output']
-#             print('lat: {tool_function_lat}') # gets let with query 'what is the weather today'
-#             if tool_function_name == 'get_weather':
-#                 #calling function now
-#                 weather_data = get_weather(tool_function_lat, tool_function_long, tool_function_type, tool_function_times, tool_function_output, access_token)
-#                 # if weather results are not null, get temperature value
-#                 if weather_data:
-#                     temperature = weather_data['t_2m:C']['value']
-#                     weather_response = f"The current temperature at the specified location is {temperature}°C."
-#                     print(f"Weather data retrieved: {weather_response}")  # Debug statement
-
-#                     # Feed the weather response back to ChatGPT for a conversational response
-#                     messages.append({
-#                         "role": "tool", 
-#                         "tool_call_id":tool_call_id,
-#                         "name": tool_function_name,
-#                         "content": weather_response
-#                     })
-#                     follow_up_response = client.chat.completions.create(
-#                         model="gpt-3.5-turbo",
-#                         messages=messages
+#             if tool_function_name == 'get_coordinates':
+#                 location_data = json.loads(tool_calls[0].function.arguments)
+#                 # TODO: change so it uses location_name 
+#                 location_name = location_data['location']
+#                 coordinates = get_coordinates(location_data['location'], location_api_key)
+#                 if coordinates:
+#                     # Now that we have the coordinates, call get_weather
+#                     weather_data = get_weather(
+#                         lat=coordinates[0],
+#                         long=coordinates[1],
+#                         _type="t_2m:C",
+#                         times="now",
+#                         output="json",
+#                         access_token=access_token
 #                     )
-                    
-#                     final_message = follow_up_response.choices[0].message.content
-#                     print('final message: {follow_up_response.choices[0].message.content}')
-#                     return final_message
-#                 else:
-#                     print("Weather data retrieval failed.")  # Debug statement
-#                     return "Sorry, I couldn't retrieve the weather information."
+#                     if weather_data:
+#                         temperature = weather_data['t_2m:C']['value']
+#                         weather_response = f"The current temperature at {location_name} is {temperature}°C."
+#                         print(f"Weather data retrieved: {weather_response}")
+#                         messages.append({
+#                             "role": "tool",
+#                             "tool_call_id": tool_call_id,
+#                             "name": tool_function_name,
+#                             "content": weather_response
+#                         })
+#                         follow_up_response = client.chat.completions.create(
+#                             model="gpt-3.5-turbo",
+#                             messages=messages
+#                         )
+#                         final_message = follow_up_response.choices[0].message.content
+#                         return final_message
+#                     else:
+#                         return "Sorry, I couldn't retrieve the weather information."
 
 
-#         # def get_weather(lat=NYC_lat, long=NYC_long, _type=temp_type, times=times, output="json", access_token=None):        
 #         # If no tool call was made, return the regular response
-#         print("No tool call made, returning regular response.")  # Debug statement
 #         return response_message.content
 
 #     except openai.BadRequestError as e:
 #         print(f"An error occurred in ChatGPT: {e}")
 #         return "Sorry, there was an error processing your request."
 
-# updated function that will ask user for location of where they want weather from
-def ChatGPT(query, access_token, location_api_key):
+
+def ChatGPT(query, access_token, location_api_key, news_api_key):
     print(f"ChatGPT called with query: {query}")  # Debug statement
+
+    # check if good morning was said in query
+    if "good morning" in query.lower():
+        # get weather and news
+        location_name = "Ocean City, New Jersey"
+        coordinates = get_coordinates(location_name, location_api_key)
+        if coordinates: 
+            weather_data = get_weather(
+                lat=coordinates[0],
+                long=coordinates[1],
+                _type="t_2m:C",
+                times="now",
+                output="json",
+                access_token=access_token
+            )
+            if weather_data:
+                temperature = weather_data['t_2m:C']['value']
+                weather_info = f"The current temperature in {location_name} is {temperature}°C."
+            else:
+                weather_info = "Sorry, I couldn't retrieve the weather information."
+
+            # getting news headlines
+            news_headlines = get_news_headlines(api_key=news_api_key)
+            if news_headlines:
+                news_info = "Here are the top headlines for today: " + "; ".join(news_headlines)
+            else:
+                news_info = "Sorry, I couldn't retrieve the news."
+            
+            # Combine weather and news information
+            combined_info = f"Good morning! {weather_info} {news_info}"
+            print(combined_info)
+
+            # Pass the combined info back through ChatGPT for conversational rephrasing
+            messages.append({"role": "user", "content": combined_info})
+            final_response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages
+            )
+            return final_response.choices[0].message.content
+
+
     
     messages = [
         {"role": "system", "content": "You are a helpful assistant."},
@@ -378,13 +495,12 @@ def ChatGPT(query, access_token, location_api_key):
         if tool_calls:
             tool_call_id = tool_calls[0].id
             tool_function_name = tool_calls[0].function.name
+
             if tool_function_name == 'get_coordinates':
                 location_data = json.loads(tool_calls[0].function.arguments)
-                # TODO: change so it uses location_name 
                 location_name = location_data['location']
-                coordinates = get_coordinates(location_data['location'], location_api_key)
+                coordinates = get_coordinates(location_name, location_api_key)
                 if coordinates:
-                    # Now that we have the coordinates, call get_weather
                     weather_data = get_weather(
                         lat=coordinates[0],
                         long=coordinates[1],
@@ -403,22 +519,36 @@ def ChatGPT(query, access_token, location_api_key):
                             "name": tool_function_name,
                             "content": weather_response
                         })
-                        follow_up_response = client.chat.completions.create(
-                            model="gpt-3.5-turbo",
-                            messages=messages
-                        )
-                        final_message = follow_up_response.choices[0].message.content
-                        return final_message
-                    else:
-                        return "Sorry, I couldn't retrieve the weather information."
 
+            elif tool_function_name == 'get_news_headlines':
+                news_data = json.loads(tool_calls[0].function.arguments)
+                news_response = get_news_headlines(news_data['country'], news_data['category'], news_data['api_key'])
+                print(f"News data retrieved: {news_response}")
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "name": tool_function_name,
+                    "content": news_response
+                })
 
-        # If no tool call was made, return the regular response
+                # # Combine weather and news information
+                # combined_info = f"Good morning! {weather_response} {news_response}"
+                # print(combined_info)
+
+                # Pass the combined info back through ChatGPT for conversational rephrasing
+                messages.append({"role": "user", "content": news_response})
+                final_response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages
+                )
+                return final_response.choices[0].message.content
+
         return response_message.content
 
     except openai.BadRequestError as e:
         print(f"An error occurred in ChatGPT: {e}")
         return "Sorry, there was an error processing your request."
+
 
 
 
